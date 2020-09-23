@@ -1,51 +1,205 @@
+# -*- coding: utf-8 -*-
+
+"""
+    SleekXMPP: The Sleek XMPP Library
+    Copyright (C) 2011  Nathanael C. Fritz
+    This file is part of SleekXMPP.
+    See the file LICENSE for copying permission.
+"""
+
+import sys
+import logging
+import getpass
+import threading
+from optparse import OptionParser
+
 import sleekxmpp
+from sleekxmpp.exceptions import IqError, IqTimeout
 
-class Jabber(sleekxmpp.ClientXMPP):
-    def __init__(self, username, password, instance_name=None):
-        jid = "%s/%s" % (username, instance_name) if instance_name else username
-        super(Jabber, self).__init__(jid, password)
 
-        self.instance_name = instance_name
-        self.add_event_handler('session_start', self.start, threaded=False, disposable=True)
-        self.add_event_handler('message', self.receive, threaded=True, disposable=False)
+# Python versions before 3.0 do not use UTF-8 encoding
+# by default. To ensure that Unicode is handled properly
+# throughout SleekXMPP, we will set the default encoding
+# ourselves to UTF-8.
+if sys.version_info < (3, 0):
+    from sleekxmpp.util.misc_ops import setdefaultencoding
+    setdefaultencoding('utf8')
+else:
+    raw_input = input
 
-        if self.connect(('talk.google.com', '5222')):
-            print("Opened XMPP Connection")
-            self.process(block=False)
-        else:
-            raise Exception("Unable to connect to Google Jabber server")
 
-    def __del__(self):
-        self.close()
+class RosterBrowser(sleekxmpp.ClientXMPP):
 
-    def close(self):
-        print("Closing XMPP Connection")
-        self.disconnect(wait=False)
+    """
+    A basic script for dumping a client's roster to
+    the command line.
+    """
+
+    def __init__(self, jid, password):
+        sleekxmpp.ClientXMPP.__init__(self, jid, password)
+        # The session_start event will be triggered when
+        # the bot establishes its connection with the server
+        # and the XML streams are ready for use. We want to
+        # listen for this event so that we we can initialize
+        # our roster. We need threaded=True so that the
+        # session_start handler doesn't block event processing
+        # while we wait for presence stanzas to arrive.
+        self.add_event_handler("session_start", self.start, threaded=True)
+        self.add_event_handler("changed_status", self.wait_for_presences, threaded=True)
+        self.add_event_handler("message", self.message, threaded=True)
+
+        self.received = set()
+        self.presences_received = threading.Event()
 
     def start(self, event):
+        """
+        Process the session_start event.
+        Typical actions for the session_start event are
+        requesting the roster and broadcasting an initial
+        presence stanza.
+        Arguments:
+            event -- An empty dictionary. The session_start
+                     event does not provide any additional
+                     data.
+        """
+        try:
+            self.get_roster()
+        except IqError as err:
+            print('Error: %s' % err.iq['error']['condition'])
+        except IqTimeout:
+            print('Error: Request timed out')
         self.send_presence()
-        self.get_roster()
+        t=threading.Thread(target=self.client_mannager,daemon=True)
+        t.run()
+        
+    def client_mannager(self):
+        while (1):
+            a=input("Ingrese la opcion que desee:\n1. imprimir Roster.\n2. Enviar Mensaje directo\n3. Salir\n")
+            if (a=="1"):
+                xmpp.print_contacts()
+            if(a=="2"):
+                recipient=input("Ingrese el usuario del receptor: ")
+                body=input("Ingrese el mensaje: ")
+                self.send_dm(recipient,body)
+            if (a=="3"):
+                break
+        self.disconnect()
 
-    def send_msg(self, recipient, body):
-        message = self.Message()
-        message['to'] = recipient
-        message['type'] = 'chat'
-        message['body'] = body
+    def message(self, msg):
+        """
+        Process incoming message stanzas. Be aware that this also
+        includes MUC messages and error messages. It is usually
+        a good idea to check the messages's type before processing
+        or sending replies.
 
-        print ("Sending message: %s" % message)
-        message.send()
+        Arguments:
+            msg -- The received message stanza. See the documentation
+                   for stanza objects and the Message stanza to see
+                   how it may be used.
+        """
+        print("[%(from)s]: %(body)s"%msg)
 
-    def receive(self, message):
-        if message['type'] in ('chat', 'normal'):
-            print ("XMPP Message: %s" % message)
-            from_account = "%s@%s" % (message['from'].user, message['from'].domain)
-            print ("%s received message from %s" % (self.instance_name, from_account))
+    def send_dm(self, recipient, body):
+        self.send_message(mto=recipient,mbody=body,mtype='chat')
 
-            if self.instance_name in message['body'].lower():
-                print("Caught test message: %s" % message)
-                message.reply("%s was listening!" % self.instance_name).send()
-            else:
-                print ("Uncaught command from %s: %s" % (from_account, message['body']))
+    def wait_for_presences(self, pres):
+        """
+        Track how many roster entries have received presence updates.
+        """
+        self.received.add(pres['from'].bare)
+        if len(self.received) >= len(self.client_roster.keys()):
+            self.presences_received.set()
+        else:
+            self.presences_received.clear()
 
-als=Jabber("LuisDelgadoTry1","Luis123")
-als.close()
+    def print_contacts(self):
+        try:
+            self.get_roster()
+        except IqError as err:
+            print('Error: %s' % err.iq['error']['condition'])
+        except IqTimeout:
+            print('Error: Request timed out')
+        
+        print('Waiting for presence updates...\n')
+        self.presences_received.wait(5)
+        print('Roster for %s' % self.boundjid.bare)
+        groups = self.client_roster.groups()
+        for group in groups:
+            print('\n%s' % group)
+            print('-' * 72)
+            for jid in groups[group]:
+                sub = self.client_roster[jid]['subscription']
+                name = self.client_roster[jid]['name']
+                if self.client_roster[jid]['name']:
+                    print(' %s (%s) [%s]' % (name, jid, sub))
+                else:
+                    print(' %s [%s]' % (jid, sub))
+
+                connections = self.client_roster.presence(jid)
+                for res, pres in connections.items():
+                    show = 'available'
+                    if pres['show']:
+                        show = pres['show']
+                    print('   - %s (%s)' % (res, show))
+                    if pres['status']:
+                        print('       %s' % pres['status'])
+
+if __name__ == '__main__':
+    # Setup the command line arguments.
+    optp = OptionParser()
+    optp.add_option('-q','--quiet', help='set logging to ERROR',
+                    action='store_const',
+                    dest='loglevel',
+                    const=logging.ERROR,
+                    default=logging.ERROR)
+    optp.add_option('-d','--debug', help='set logging to DEBUG',
+                    action='store_const',
+                    dest='loglevel',
+                    const=logging.DEBUG,
+                    default=logging.ERROR)
+    optp.add_option('-v','--verbose', help='set logging to COMM',
+                    action='store_const',
+                    dest='loglevel',
+                    const=5,
+                    default=logging.ERROR)
+
+    # JID and password options.
+    optp.add_option("-j", "--jid", dest="jid",
+                    help="JID to use")
+    optp.add_option("-p", "--password", dest="password",
+                    help="password to use")
+    opts,args = optp.parse_args()
+
+    # Setup logging.
+    logging.basicConfig(level=opts.loglevel,
+                        format='%(levelname)-8s %(message)s')
+
+    if opts.jid is None:
+        opts.jid = raw_input("Username: ")
+    if opts.password is None:
+        opts.password = getpass.getpass("Password: ")
+
+    xmpp = RosterBrowser(opts.jid, opts.password)
+
+    # If you are working with an OpenFire server, you may need
+    # to adjust the SSL version used:
+    # xmpp.ssl_version = ssl.PROTOCOL_SSLv3
+
+    # If you want to verify the SSL certificates offered by a server:
+    # xmpp.ca_certs = "path/to/ca/cert"
+
+    # Connect to the XMPP server and start processing XMPP stanzas.
+    if xmpp.connect():
+        # If you do not have the dnspython library installed, you will need
+        # to manually specify the name of the server if it does not match
+        # the one in the JID. For example, to use Google Talk you would
+        # need to use:
+        #
+        # if xmpp.connect(('talk.google.com', 5222)):
+        #     ...
+        xmpp.process(block=True)
+    else:
+        print("Unable to connect.")
+        exit()
+    
+#als=Jabber("LuisDelgadoTry2","1234","redes2020.xyz")
