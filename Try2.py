@@ -101,7 +101,7 @@ class RegisterBot(sleekxmpp.ClientXMPP):
 
         try:
             resp.send(now=True)
-            print("Se creo la cuenta para:",self.boundjid.user, ".\n En dominio:",self.boundjid.domain3)
+            print("Se creo la cuenta para:",self.boundjid.user, ".\n En dominio:",self.boundjid.domain)
         except IqError as e:
             logging.error("Could not register account: %s" %
                     e.iq['error']['text'])
