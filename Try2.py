@@ -109,7 +109,7 @@ class RegisterBot(sleekxmpp.ClientXMPP):
         except IqTimeout:
             logging.error("No response from server.")
             self.disconnect()
-
+      
 class RosterBrowser(sleekxmpp.ClientXMPP):
 
     """
@@ -129,6 +129,7 @@ class RosterBrowser(sleekxmpp.ClientXMPP):
         self.add_event_handler("session_start", self.start, threaded=True)
         self.add_event_handler("changed_status", self.wait_for_presences, threaded=True)
         self.add_event_handler("message", self.message, threaded=True)
+        self.add_event_handler("groupchat_message", self.muc_message)
 
         self.received = set()
         self.presences_received = threading.Event()
@@ -153,23 +154,65 @@ class RosterBrowser(sleekxmpp.ClientXMPP):
         self.send_presence()
         t=threading.Thread(target=self.client_mannager,daemon=True)
         t.run()
+    def send_message_to_group(self,jid,body):
+        m=self.Message()
+        m['to']=jid
+        m['type']='groupchat'
+        m['body']=body
+        m.send()
+    def delete_account(self):
+        a="""
+            <iq type='set' id='unreg1'>
+                <query xmlns='jabber:iq:register'>
+                    <remove/>
+                </query>
+            </iq>
+        """
+        self.send_raw(a)
+        print("Se eliminó la cuenta")
+        
         
     def client_mannager(self):
         while (1):
-            a=input("Ingrese la opcion que desee:\n1. imprimir Roster.\n2. Agregar un usuario a tu lista\n3. Enviar Mensaje directo\n4. Salir\n")
+            a=input("Ingrese la opcion que desee:\n1. imprimir Roster.\n2. Agregar un usuario a tu lista\n3. Enviar Mensaje directo\n"+
+            "4. Crear chat grupal\n5. Unirse a un chat grupal\n6. Enviar mensaje a grupo\n7. Eliminar Cuenta\n8. Cerrar Sesion\n")
             if (a=="1"):
-                xmpp.print_contacts()
+                self.print_contacts()
             if (a=="2"):
                 nombre=input("Ingrese el JID de el contacto a agregar")
                 self.send_presence_subscription(pto=nombre)
-            if(a=="3"):
+            if (a=="3"):
                 recipient=input("Ingrese el usuario del receptor: ")
                 body=input("Ingrese el mensaje: ")
                 self.send_dm(recipient,body)
             if (a=="4"):
+                self.create_room(input("Ingrese el nombre del grupo: "))
+            if (a=="5"):
+                self.create_room(input("Ingrese el nombre del grupo: "))
+            if (a=="6"):
+                group=input("ingrese el nombre del grupo: ")
+                body=input("Ingrese el mensaje: ")
+                self.send_message_to_group(group,body)
+            if (a=="7"):
+                self.delete_account()
+                break
+            if (a=="8"):
                 break
         self.disconnect()
-
+    def muc_message(self, msg):
+        if msg['mucnick'] != self.boundjid.username:
+            print("[Groupchat: ",msg['from'].bare,"]","\n\t[%(mucnick)s]: %(body)s"%msg)
+    def create_room(self, room):
+        try:
+            self.add_event_handler("muc::%s::got_online" % room,self.muc_online)
+            self.plugin['xep_0045'].joinMUC(room,self.boundjid.username,wait=True)
+        except IqError as err:
+            print('Error: %s' % err.iq['error']['condition'])
+        except IqTimeout:
+            print('Error: Request timed out')
+    def muc_online(self, presence):
+        if presence['muc']['nick'] != self.boundjid.username:
+            self.send_message(mto=presence['from'].bare,mbody="Hello, %s %s" % (presence['muc']['role'],presence['muc']['nick']),mtype='groupchat')
     def message(self, msg):
         """
         Process incoming message stanzas. Be aware that this also
@@ -182,7 +225,8 @@ class RosterBrowser(sleekxmpp.ClientXMPP):
                    for stanza objects and the Message stanza to see
                    how it may be used.
         """
-        print("[%(from)s]: %(body)s"%msg)
+        if (msg["type"]in ('normal','chat')):
+            print("[%(from)s]: %(body)s"%msg)
 
     def send_dm(self, recipient, body):
         self.send_message(mto=recipient,mbody=body,mtype='chat')
@@ -236,6 +280,9 @@ if __name__ == '__main__':
             jid = raw_input("Username: ")
             password = getpass.getpass("Password: ")
             xmpp = RosterBrowser(jid, password)
+            xmpp.register_plugin('xep_0030') # Service Discovery
+            xmpp.register_plugin('xep_0045') # Multi-User Chat
+            xmpp.register_plugin('xep_0199') # XMPP Ping
             if xmpp.connect():
                 # If you do not have the dnspython library installed, you will need
                 # to manually specify the name of the server if it does not match
