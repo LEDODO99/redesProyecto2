@@ -133,7 +133,7 @@ class RosterBrowser(sleekxmpp.ClientXMPP):
             if (a=="1"):
                 self.print_contacts()
             if (a=="2"):
-                nombre=input("Ingrese el JID de el contacto a agregar")
+                nombre=input("Ingrese el JID de el contacto a agregar: ")
                 self.send_presence_subscription(pto=nombre)
             if (a=="3"):
                 recipient=input("Ingrese el usuario del receptor: ")
