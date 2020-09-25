@@ -27,49 +27,17 @@ if sys.version_info < (3, 0):
 else:
     raw_input = input
 
+#bot para registrar un nuevo usuario 
+#Estraido de https://searchcode.com/file/58168360/examples/register_account.py/
 class RegisterBot(sleekxmpp.ClientXMPP):
-
-    """
-    A basic bot that will attempt to register an account
-    with an XMPP server.
-
-    NOTE: This follows the very basic registration workflow
-          from XEP-0077. More advanced server registration
-          workflows will need to check for data forms, etc.
-    """
 
     def __init__(self, jid, password):
         sleekxmpp.ClientXMPP.__init__(self, jid, password)
 
-        # The session_start event will be triggered when
-        # the bot establishes its connection with the server
-        # and the XML streams are ready for use. We want to
-        # listen for this event so that we we can initialize
-        # our roster.
         self.add_event_handler("session_start", self.start, threaded=True)
-
-        # The register event provides an Iq result stanza with
-        # a registration form from the server. This may include
-        # the basic registration fields, a data form, an
-        # out-of-band URL, or any combination. For more advanced
-        # cases, you will need to examine the fields provided
-        # and respond accordingly. SleekXMPP provides plugins
-        # for data forms and OOB links that will make that easier.
         self.add_event_handler("register", self.register, threaded=True)
 
     def start(self, event):
-        """
-        Process the session_start event.
-
-        Typical actions for the session_start event are
-        requesting the roster and broadcasting an initial
-        presence stanza.
-
-        Arguments:
-            event -- An empty dictionary. The session_start
-                     event does not provide any additional
-                     data.
-        """
         self.send_presence()
         self.get_roster()
 
@@ -77,23 +45,6 @@ class RegisterBot(sleekxmpp.ClientXMPP):
         self.disconnect()
 
     def register(self, iq):
-        """
-        Fill out and submit a registration form.
-
-        The form may be composed of basic registration fields, a data form,
-        an out-of-band link, or any combination thereof. Data forms and OOB
-        links can be checked for as so:
-
-        if iq.match('iq/register/form'):
-            # do stuff with data form
-            # iq['register']['form']['fields']
-        if iq.match('iq/register/oob'):
-            # do stuff with OOB URL
-            # iq['register']['oob']['url']
-
-        To get the list of basic registration fields, you can use:
-            iq['register']['fields']
-        """
         resp = self.Iq()
         resp['type'] = 'set'
         resp['register']['username'] = self.boundjid.user
@@ -109,7 +60,8 @@ class RegisterBot(sleekxmpp.ClientXMPP):
         except IqTimeout:
             logging.error("No response from server.")
             self.disconnect()
-      
+#Extraido de https://github.com/fritzy/SleekXMPP/blob/develop/examples/roster_browser.py
+#Lo extraido fue la capacidad de imprimir el roster
 class RosterBrowser(sleekxmpp.ClientXMPP):
 
     """
@@ -152,6 +104,7 @@ class RosterBrowser(sleekxmpp.ClientXMPP):
         except IqTimeout:
             print('Error: Request timed out')
         self.send_presence()
+        # Inicia el thread para manejar el cliente
         t=threading.Thread(target=self.client_mannager,daemon=True)
         t.run()
     def send_message_to_group(self,jid,body):
@@ -160,6 +113,7 @@ class RosterBrowser(sleekxmpp.ClientXMPP):
         m['type']='groupchat'
         m['body']=body
         m.send()
+    #Funcion de borrar cuenta actual
     def delete_account(self):
         a="""
             <iq type='set' id='unreg1'>
@@ -171,7 +125,7 @@ class RosterBrowser(sleekxmpp.ClientXMPP):
         self.send_raw(a)
         print("Se eliminó la cuenta")
         
-        
+    #Funcion para manejar el cliente
     def client_mannager(self):
         while (1):
             a=input("Ingrese la opcion que desee:\n1. imprimir Roster.\n2. Agregar un usuario a tu lista\n3. Enviar Mensaje directo\n"+
@@ -199,9 +153,11 @@ class RosterBrowser(sleekxmpp.ClientXMPP):
             if (a=="8"):
                 break
         self.disconnect()
+    #Funcion para recibir mensajes de grupos
     def muc_message(self, msg):
         if msg['mucnick'] != self.boundjid.username:
             print("[Groupchat: ",msg['from'].bare,"]","\n\t[%(mucnick)s]: %(body)s"%msg)
+    #Funcion para crear/unirse a un chat grupal
     def create_room(self, room):
         try:
             self.add_event_handler("muc::%s::got_online" % room,self.muc_online)
@@ -213,6 +169,7 @@ class RosterBrowser(sleekxmpp.ClientXMPP):
     def muc_online(self, presence):
         if presence['muc']['nick'] != self.boundjid.username:
             self.send_message(mto=presence['from'].bare,mbody="Hello, %s %s" % (presence['muc']['role'],presence['muc']['nick']),mtype='groupchat')
+    #Funcion para recibir mensajes directos
     def message(self, msg):
         """
         Process incoming message stanzas. Be aware that this also
@@ -227,7 +184,7 @@ class RosterBrowser(sleekxmpp.ClientXMPP):
         """
         if (msg["type"]in ('normal','chat')):
             print("[%(from)s]: %(body)s"%msg)
-
+    #Enviar mensaje a persona en específico
     def send_dm(self, recipient, body):
         self.send_message(mto=recipient,mbody=body,mtype='chat')
 
@@ -241,6 +198,8 @@ class RosterBrowser(sleekxmpp.ClientXMPP):
         else:
             self.presences_received.clear()
 
+    #Imprime los contactos del roster
+    #Extraido de https://github.com/fritzy/SleekXMPP/blob/develop/examples/roster_browser.py
     def print_contacts(self):
         try:
             self.get_roster()
@@ -284,13 +243,6 @@ if __name__ == '__main__':
             xmpp.register_plugin('xep_0045') # Multi-User Chat
             xmpp.register_plugin('xep_0199') # XMPP Ping
             if xmpp.connect():
-                # If you do not have the dnspython library installed, you will need
-                # to manually specify the name of the server if it does not match
-                # the one in the JID. For example, to use Google Talk you would
-                # need to use:
-                #
-                # if xmpp.connect(('talk.google.com', 5222)):
-                #     ...
                 xmpp.process(block=True)
             else:
                 print("Unable to connect.")
@@ -316,15 +268,3 @@ if __name__ == '__main__':
         if (a=="3"):
             exit()
 
-
-    # If you are working with an OpenFire server, you may need
-    # to adjust the SSL version used:
-    # xmpp.ssl_version = ssl.PROTOCOL_SSLv3
-
-    # If you want to verify the SSL certificates offered by a server:
-    # xmpp.ca_certs = "path/to/ca/cert"
-
-    # Connect to the XMPP server and start processing XMPP stanzas.
-    
-    
-#als=Jabber("LuisDelgadoTry2","1234","redes2020.xyz")
