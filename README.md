@@ -32,10 +32,20 @@ Ingrese la opcion que desee:
 8. Cerrar Sesion
 
 -Option 1 will print you contact list
+
 -Option 2 will ask you for the username of a contact you'd like to add. Again, please enter the Username and domain-name (ej. username@example.com). afterwards the user will be added to you contact list and will apear whenever you print it.
+
 -Option 3 will ask you for the username of the contact to send the direct message. Again please enter the username and domain-name (ej. username@example.com). Afterwards it will ask for the message you'd like to send.
+
 -Option 4 will ask you for the name of the room you'd like to create. Please enter roomname followed by @ and then conference.domain (ej. groupchatName@conference.example.com).
+
 -Option 5 will ask you for the name of the room you'd like to join. Again, please enter roomname followed by @ and then conference.domain (ej. groupchatName@conference.example.com).
+
 -Option 6 will ask you for the name of the room you'd like to send a message to. Again, please enter roomname followed by @ and then conference.domain (ej. groupchatName@conference.example.com). Afterwards it will ask for the message you'd like to send.
+
 -Option 7 will delete the account you are currently on from the domain/server and disconect you. Afterwards you'll be sent to the login menu. if you try to login to the now deleted account you won't be able to.
+
 -Option 8 will log you out and return you to the login menu.
+
+
+
