@@ -129,7 +129,7 @@ class RosterBrowser(sleekxmpp.ClientXMPP):
     def client_mannager(self):
         while (1):
             a=input("Ingrese la opcion que desee:\n1. imprimir Roster.\n2. Agregar un usuario a tu lista\n3. Enviar Mensaje directo\n"+
-            "4. Crear chat grupal\n5. Unirse a un chat grupal\n6. Enviar mensaje a grupo\n7. Eliminar Cuenta\n8. Cerrar Sesion\n")
+            "4. Crear chat grupal\n5. Unirse a un chat grupal\n6. Enviar mensaje a grupo\n7. Eliminar Cuenta\n8. Cerrar Sesion\n>>")
             if (a=="1"):
                 self.print_contacts()
             if (a=="2"):
@@ -234,7 +234,7 @@ class RosterBrowser(sleekxmpp.ClientXMPP):
 
 if __name__ == '__main__':
     while (1):
-        a=input("Seleccione lo que desea hacer\n1. Login\n2. Signup\n3. Salir\n")
+        a=input("Seleccione lo que desea hacer\n1. Login\n2. Signup\n3. Salir\n>>")
         if (a=="1"):
             jid = raw_input("Username: ")
             password = getpass.getpass("Password: ")
